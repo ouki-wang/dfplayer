@@ -336,6 +336,9 @@ replay:
     dec_channel_layout = (af->frame->channel_layout && af->frame->channels == av_get_channel_layout_nb_channels(af->frame->channel_layout)) ?
                           af->frame->channel_layout : av_get_default_channel_layout(af->frame->channels);
     wanted_nb_samples = synchronize_audio(is, af->frame->nb_samples);
+	//printf("------------------------------------------------------------\n");
+	//printf("[%s():%d] dec_channel_layout = %lld     wanted_nb_samples=%d\n",__FUNCTION__, __LINE__, dec_channel_layout,wanted_nb_samples);
+	//printf("------------------------------------------------------------\n");
     // is->audio_param_tgt是SDL可接受的音频帧数，是audio_open()中取得的参数
     // 在audio_open()函数中又有“is->audio_src = is->audio_param_tgt”
     // 此处表示：如果frame中的音频参数 == is->audio_src == is->audio_param_tgt，那音频重采样的过程就免了(因此时is->swr_ctr是NULL)
@@ -417,7 +420,7 @@ replay:
         //printf("len2 : %d, out_count : %d, out_size : %d, nb_sample : %d\n", len2, out_count, out_size, wanted_nb_samples);
         // 重采样返回的一帧音频数据大小(以字节为单位)
         resampled_data_size = len2 * is->audio_param_tgt.channels * av_get_bytes_per_sample(is->audio_param_tgt.fmt);
-        //printf("resampled_data_size : %d, channels : %d\n", resampled_data_size, is->audio_param_tgt.channels);
+        //printf("-----resampled_data_size : %d, channels : %d  , av_get_bytes_per_sample : %d, len2=%d\n", resampled_data_size, is->audio_param_tgt.channels,av_get_bytes_per_sample(is->audio_param_tgt.fmt),len2);
     }
     else
     {
@@ -435,7 +438,7 @@ replay:
     {
         is->audio_clock = NAN;
     }
-    //printf("after pts: %.4lf,clock: %.4lf\n",af->pts,is->audio_clock);
+    //printf("after pts: %.4lf,clock: %.4lf    af->serial=%d\n",af->pts,is->audio_clock, af->serial);
     is->audio_clock_serial = af->serial;
     return resampled_data_size;
 
@@ -461,6 +464,8 @@ static void * audio_playing_thread(void *arg)
         int64_t audio_callback_time = av_gettime_relative();
 
         audio_size = audio_resample(is);
+		
+		//printf("--------------------------------------------audio_callback_time=%lld  audio_size=%d\n",audio_callback_time,audio_size);
         if (audio_size == AVERROR_EOF)
             break;
         else if (audio_size == AVERROR_EXIT)
@@ -583,7 +588,9 @@ static int open_audio_playing(void *arg)
     is->audio_param_tgt.channels       = av_get_channel_layout_nb_channels(is->audio_param_tgt.channel_layout);
     is->audio_param_tgt.frame_size     = av_samples_get_buffer_size(NULL, is->audio_param_tgt.channels, 1, is->audio_param_tgt.fmt, 1);
     is->audio_param_tgt.bytes_per_sec  = av_samples_get_buffer_size(NULL, is->audio_param_tgt.channels, is->audio_param_tgt.freq, is->audio_param_tgt.fmt, 1);
-    
+    //printf("------------------------------------------------------------\n");
+	//printf("[%s():%d] is->audio_param_tgt.channels = %d     is->audio_param_tgt.frame_size=%d     is->audio_param_tgt.bytes_per_sec=%d\n",__FUNCTION__, __LINE__, is->audio_param_tgt.channels, is->audio_param_tgt.frame_size, is->audio_param_tgt.bytes_per_sec);
+	//printf("------------------------------------------------------------\n");
     if (is->audio_param_tgt.bytes_per_sec <= 0 || is->audio_param_tgt.frame_size <= 0)
     {
         av_log(NULL, AV_LOG_ERROR, "av_samples_get_buffer_size failed\n");

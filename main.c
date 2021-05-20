@@ -8,47 +8,6 @@
 #include "interface.h"
 #include "platform.h"
 
-#if 0
-pthread_t idle_tid;
-
-typedef struct play_info {
-    char *url;
-    int  width;
-    int  height;
-    bool exit;
-}play_info;
-
-static void* idle_thread(void *arg)
-{
-    play_info *is = (play_info *)arg;
-    static int counter = 0;
-
-    printf("get in idle pthread!\n");
-    fflush(stdout);
-    while(!is->exit)
-    {
-        sleep(1);   //阻塞1s
-        printf("counter value : %.2ds\r", counter);
-        fflush(stdout);
-        if (++ counter == 60) {
-            sstar_player_close();
-        } else if (counter == 70) {
-            sstar_player_open(is->url, 0, 0, is->width, is->height);
-            counter = 0;
-        }
-
-        if (0 < sstar_player_status()) {
-            sstar_player_close();
-            printf("sstar player done!\n");
-        }
-    }
-
-    printf("idle pthread exit\n");
-
-    return NULL;
-}
-#endif
-
 struct player_t {
     char *file;
     int  mode;
@@ -65,10 +24,7 @@ char video_list[2][128] = {
 static void *sstar_player_thread(void *arg)
 {
     struct player_t *is = (struct player_t *)arg;
-    int ret, list_num, i = 0;
-
-    list_num = sizeof(video_list) / sizeof(video_list[0]);
-    printf("video list item num : %d\n", list_num);
+    int ret;
 
     printf("get in sstar_player_thread!\n");
     while (!is->exit)
@@ -92,7 +48,6 @@ static void *sstar_player_thread(void *arg)
                 case 2:
                     sstar_player_close();
 replay:
-                    is->file = video_list[(++ i) % list_num];
                     printf("try to play %s ...\n", is->file);
                     ret = sstar_player_open(is->file, 0, 0, is->width, is->height);
                     if (ret < 0) {
@@ -124,26 +79,21 @@ int main(int argc, char *argv[])
     bool mute = false;
     double duration, current_time, seek_time = 0.0;
 
-    printf("welcome to test ssplayer!\n");
+	if(argc < 2){
+		printf("usage:  dfplayer xxx.mp4\n");
+		return -1;
+	}
+    printf("welcome to test dfplayer!\n");
 
-    if (argv[1]) {
-        myplay.file = argv[1];
-        myplay.flag = 0;
-    } else {
-        myplay.file = video_list[0];
-        myplay.flag = 1;
-    }
+    myplay.file = argv[1];
+    myplay.flag = 0;
 
     myplay.exit   = false;
     myplay.mode   = 0;
 
     sstar_sys_init();
 
-    #ifdef SUPPORT_HDMI
-    sstar_hdmi_init(E_MI_DISP_INTF_HDMI);
-    #else
     sstar_panel_init(E_MI_DISP_INTF_LCD);
-    #endif
 
     sstar_getpanel_wh(&myplay.width, &myplay.height);
 
@@ -151,11 +101,8 @@ int main(int argc, char *argv[])
 
     //sstar_player_setopts("video_only", "1", 0);   //设置是否只播视频
     //sstar_player_setopts("rotate", "0", 0);       //设置是否旋转
-#if SUPPORT_HDMI
-    sstar_player_setopts("displayer", "hdmi", 0);   //设置显示设备
-#else
     sstar_player_setopts("displayer", "panel", 0);  //设置显示设备
-#endif
+
     ret = sstar_player_open(myplay.file, 0, 0, myplay.width, myplay.height);
     if (ret < 0)
         goto exit;
@@ -280,12 +227,7 @@ int main(int argc, char *argv[])
 exit:
     sstar_player_close();
 
-    #ifdef SUPPORT_HDMI
-    sstar_hdmi_deinit(E_MI_DISP_INTF_HDMI);
-    #else
     sstar_panel_deinit(E_MI_DISP_INTF_LCD);
-    #endif
-
     sstar_sys_deinit();
     return 0;
 }

@@ -7,11 +7,7 @@ extern "C"{
 
 #include "player.h"
 
-#ifdef SUPPORT_HDMI
-#define AUDIO_DEV               3
-#else
 #define AUDIO_DEV               0
-#endif
 
 #define AUDIO_CHN               0
 
