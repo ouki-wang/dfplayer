@@ -433,6 +433,7 @@ static int video_load_picture(player_stat_t *is, AVFrame *frame)
         //printf("time of sws_scale : %lldus, time of rotate : %lldus\n", time0, time1);
     }
     else if (is->decoder_type == HARD_DECODING) {
+		//printf("[%s():%d] frame->opaque=0x%p\n", __FUNCTION__,__LINE__, frame->opaque);
         MI_SYS_ChnPort_t  stInputChnPort;
         memset(&stInputChnPort, 0, sizeof(MI_SYS_ChnPort_t));
         stInputChnPort.eModId                    = E_MI_MODULE_ID_DISP;
@@ -458,150 +459,13 @@ static void video_display(player_stat_t *is)
 
     //av_log(NULL, AV_LOG_ERROR, "rindex : %d, shownidex : %d, size : %d\n", is->video_frm_queue.rindex, is->video_frm_queue.rindex_shown, is->video_frm_queue.size);
     vp = frame_queue_peek_last(&is->video_frm_queue);
-    //vp = frame_queue_peek(&is->video_frm_queue);
     if (!vp->frame->width || !vp->frame->height)
     {
         av_log(NULL, AV_LOG_ERROR, "invalid frame width and height!\n");
         return;
     }
-    //printf("frame data addr : %p %p\n", vp->frame->data[0], vp->frame->data[1]);
-    //vp->frame->linesize[AV_NUM_DATA_POINTERS] = {vp->frame->width, vp->frame->width, 0, 0, 0, 0, 0, 0};
-    //printf("get vp disp ridx: %d,format: %d\n",is->video_frm_queue.rindex,vp->frame->format);      
-    //printf("save yuv width: %d,height: %d\n",vp->frame->width,vp->frame->height);
-
-    // 图像转换：p_frm_raw->data ==> p_frm_yuv->data
-    // 将源图像中一片连续的区域经过处理后更新到目标图像对应区域，处理的图像区域必须逐行连续
-    // plane: 如YUV有Y、U、V三个plane，RGB有R、G、B三个plane
-    // slice: 图像中一片连续的行，必须是连续的，顺序由顶部到底部或由底部到顶部
-    // stride/pitch: 一行图像所占的字节数，Stride=BytesPerPixel*Width+Padding，注意对齐
-    // AVFrame.*data[]: 每个数组元素指向对应plane
-    // AVFrame.linesize[]: 每个数组元素表示对应plane中一行图像所占的字节数
-    
-    //struct timeval trans_start, trans_tim, trans_end;
-    //int64_t time0, time1;
-
     video_load_picture(is, vp->frame);
 
-    //gettimeofday(&trans_start, NULL);
-    /*MI_SYS_BUF_HANDLE hHandle;
-    MI_SYS_BufInfo_t  stBufInfo;
-    MI_SYS_ChnPort_t  stInputChnPort;
-    MI_SYS_BufConf_t  stInputBufConf;
-
-    memset(&stInputChnPort, 0, sizeof(MI_SYS_ChnPort_t));
-    stInputChnPort.eModId                    = E_MI_MODULE_ID_DIVP;
-    stInputChnPort.u32ChnId                  = 0;
-    stInputChnPort.u32DevId                  = 0;
-    stInputChnPort.u32PortId                 = 0;
-
-    memset(&stInputBufConf, 0 , sizeof(MI_SYS_BufConf_t));
-    stInputBufConf.eBufType                  = E_MI_SYS_BUFDATA_FRAME;
-    stInputBufConf.u64TargetPts              = 0;
-    stInputBufConf.stFrameCfg.u16Width       = vp->frame->width;
-    stInputBufConf.stFrameCfg.u16Height      = vp->frame->height;
-    stInputBufConf.stFrameCfg.eFormat        = E_MI_SYS_PIXEL_FRAME_YUV_SEMIPLANAR_420;
-    stInputBufConf.stFrameCfg.eFrameScanMode = E_MI_SYS_FRAME_SCAN_MODE_PROGRESSIVE;
-
-    if(MI_SUCCESS == MI_SYS_ChnInputPortGetBuf(&stInputChnPort, &stInputBufConf, &stBufInfo, &hHandle, -1))
-    {
-        stBufInfo.stFrameData.eCompressMode = E_MI_SYS_COMPRESS_MODE_NONE;
-        stBufInfo.stFrameData.eFieldType    = E_MI_SYS_FIELDTYPE_NONE;
-        stBufInfo.stFrameData.eTileMode     = E_MI_SYS_FRAME_TILE_MODE_NONE;
-        stBufInfo.bEndOfStream              = FALSE;
-
-        //printf("\033[32;2msrcwidth : %d, stride : %d, height : %d\033[0m\n", stBufInfo.stFrameData.u16Width,
-        //stBufInfo.stFrameData.u32Stride[0], stBufInfo.stFrameData.u16Height);
-
-        //向DIVP中填数据时必须按照stride大小填充
-        if (is->decoder_type == SOFT_DECODING)
-        {
-            sws_scale(is->img_convert_ctx,                   // sws context
-                     (const uint8_t *const *)vp->frame->data,// src slice
-                     vp->frame->linesize,                    // src stride
-                     0,                                      // src slice y
-                     is->p_vcodec_ctx->height,               // src slice height
-                     is->p_frm_yuv->data,                    // dst planes
-                     is->p_frm_yuv->linesize                 // dst strides
-                     );
-
-            for (int index = 0; index < stBufInfo.stFrameData.u16Height; index ++)
-            {
-               memcpy(stBufInfo.stFrameData.pVirAddr[0] + index * stBufInfo.stFrameData.u32Stride[0], 
-                      (uint8_t *)(is->p_frm_yuv->data[0] + index * stBufInfo.stFrameData.u16Width), 
-                      stBufInfo.stFrameData.u16Width);
-            }
-            for (int index = 0; index < stBufInfo.stFrameData.u16Height / 2; index ++)
-            {
-               memcpy(stBufInfo.stFrameData.pVirAddr[1] + index * stBufInfo.stFrameData.u32Stride[1], 
-                      (uint8_t *)(is->p_frm_yuv->data[1] + index * stBufInfo.stFrameData.u16Width), 
-                      stBufInfo.stFrameData.u16Width);
-            }
-        }
-        else
-        {
-            av_assert0(vp->frame->opaque);
-
-            SS_Vdec_BufInfo *stVdecBuf = (SS_Vdec_BufInfo *)vp->frame->opaque; 
-
-            int length = vp->frame->width * vp->frame->height;
-
-            // bframe buf is meta data, inject function isn't supported, so using memory copy
-            if (stVdecBuf->bType == true)
-            {
-                mi_vdec_DispFrame_t *pstVdecInfo = (mi_vdec_DispFrame_t *)stVdecBuf->stVdecBufInfo.stMetaData.pVirAddr;
-
-                #if 1
-                //av_log(NULL, AV_LOG_ERROR, "use MI_SYS_MemcpyPa!\n");
-                MI_SYS_MemcpyPa(stBufInfo.stFrameData.phyAddr[0],
-                                pstVdecInfo->stFrmInfo.phyLumaAddr , 
-                                length);
-                MI_SYS_MemcpyPa(stBufInfo.stFrameData.phyAddr[1],
-                                pstVdecInfo->stFrmInfo.phyChromaAddr, 
-                                length / 2);
-                #else
-                void *vdec_vir_addr;
-                MI_SYS_Mmap(pstVdecInfo->stFrmInfo.phyLumaAddr, ALIGN_UP(length + length / 2, 4096), &vdec_vir_addr, FALSE);
-                memcpy(stBufInfo.stFrameData.pVirAddr[0], vdec_vir_addr, length);
-                memcpy(stBufInfo.stFrameData.pVirAddr[1], vdec_vir_addr + length, length / 2);
-                MI_SYS_Munmap(vdec_vir_addr, ALIGN_UP(length + length / 2, 4096));
-                #endif
-
-                video_buffer_putback(vp->frame);
-            }
-            else
-            {
-                #if 1
-                if (MI_SUCCESS != MI_SYS_ChnPortInjectBuf(stVdecBuf->stVdecHandle, &stInputChnPort))
-                    av_log(NULL, AV_LOG_ERROR, "MI_SYS_ChnPortInjectBuf failed!\n");
-                #else
-                MI_SYS_MemcpyPa(stBufInfo.stFrameData.phyAddr[0],
-                                stVdecBuf->stVdecBufInfo.stFrameData.phyAddr[0],
-                                length);
-                MI_SYS_MemcpyPa(stBufInfo.stFrameData.phyAddr[1],
-                                stVdecBuf->stVdecBufInfo.stFrameData.phyAddr[1],
-                                length / 2);
-                video_buffer_putback(vp->frame);
-                #endif
-            }
-            av_freep(&vp->frame->opaque);
-        }
- 
-        if (MI_SUCCESS != MI_SYS_ChnInputPortPutBuf(hHandle ,&stBufInfo , FALSE))
-        {
-           av_log(NULL, AV_LOG_ERROR, "MI_SYS_ChnInputPortPutBuf Failed!\n");
-        }
-        //av_log(NULL, AV_LOG_ERROR, "is->p_vcodec_ctx->flags2: %d\n", is->p_vcodec_ctx->flags2 --);
-    }*/
-
-    //trans_start.tv_sec  = trans_tim.tv_sec;
-    //trans_start.tv_usec = trans_tim.tv_usec;
-    //gettimeofday(&trans_tim, NULL);                                                                                                                                                                                                                                                                                              
-    //put stream to ss disp end
-    //gettimeofday(&trans_end, NULL);
-    //time0 = ((int64_t)trans_tim.tv_sec * 1000000 + trans_tim.tv_usec) - ((int64_t)trans_start.tv_sec * 1000000 + trans_start.tv_usec);
-    //printf("time gap of sending data to divp: %lldus\n", time0);
-    //time1 = ((int64_t)trans_end.tv_sec * 1000000 + trans_end.tv_usec) - ((int64_t)trans_tim.tv_sec * 1000000 + trans_tim.tv_usec);
-    //printf("yuv420p to nv12 : %lldus, send to divp : %lldus\n", time0, time1);
 }
 
 /* called to display each frame */
@@ -753,6 +617,7 @@ static void * video_decode_thread(void *arg)
 
             //printf("fram queue num : %d, video frame clock : %f.\n", is->video_frm_queue.size, pts);
             ret = queue_picture(is, p_frame, pts, duration, p_frame->pkt_pos);          // 将当前帧压入frame_queue
+			//printf("[%s():%d] p_frame->opaque=0x%p\n", __FUNCTION__,__LINE__, p_frame->opaque);
             av_frame_unref(p_frame);
 
             if (NULL == frame_queue_peek_writable(&is->video_frm_queue)) {

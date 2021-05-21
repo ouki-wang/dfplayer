@@ -12,13 +12,9 @@ struct player_t {
     char *file;
     int  mode;
     bool exit;
+	int  x,y;
     int  width, height;
     int  flag;
-};
-
-char video_list[2][128] = {
-    "1066.mkv",
-    "MIss_A-Hush_H264_720P_B.mp4"
 };
 
 static void *sstar_player_thread(void *arg)
@@ -80,14 +76,25 @@ int main(int argc, char *argv[])
     double duration, current_time, seek_time = 0.0;
 
 	if(argc < 2){
-		printf("usage:  dfplayer xxx.mp4\n");
+		printf("usage:  dfplayer xxx.mp4 x y width height\n");
 		return -1;
+	}else if(argc < 6){
+		myplay.file = argv[1];
+		myplay.x = 0;
+		myplay.y = 0;
+		myplay.width = 1024;
+		myplay.height = 600;
+	}else{
+		myplay.file = argv[1];
+		myplay.x = atoi(argv[2]);
+		myplay.y = atoi(argv[3]);
+		myplay.width = atoi(argv[4]);
+		myplay.height = atoi(argv[5]);
 	}
+	
     printf("welcome to test dfplayer!\n");
 
-    myplay.file = argv[1];
     myplay.flag = 0;
-
     myplay.exit   = false;
     myplay.mode   = 0;
 
@@ -95,15 +102,15 @@ int main(int argc, char *argv[])
 
     sstar_panel_init(E_MI_DISP_INTF_LCD);
 
-    sstar_getpanel_wh(&myplay.width, &myplay.height);
+    //sstar_getpanel_wh(&myplay.width, &myplay.height);
 
     printf("Try playing %s ...\n", myplay.file);
 
     //sstar_player_setopts("video_only", "1", 0);   //设置是否只播视频
     //sstar_player_setopts("rotate", "0", 0);       //设置是否旋转
     sstar_player_setopts("displayer", "panel", 0);  //设置显示设备
-
-    ret = sstar_player_open(myplay.file, 0, 0, myplay.width, myplay.height);
+    printf(" myplay.x=%d, myplay.y=%d, myplay.width=%d, myplay.height=%d\n", myplay.x, myplay.y, myplay.width, myplay.height);
+    ret = sstar_player_open(myplay.file, myplay.x, myplay.y, myplay.width, myplay.height);
     if (ret < 0)
         goto exit;
 
@@ -117,7 +124,7 @@ int main(int argc, char *argv[])
         switch (cmd) 
         {
             case 's':
-                sstar_player_open(myplay.file, 0, 0, myplay.width, myplay.height);
+                sstar_player_open(myplay.file, myplay.x, myplay.y, myplay.width, myplay.height);
             break;
 
             case 't':
